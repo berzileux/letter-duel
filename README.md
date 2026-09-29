@@ -92,4 +92,4 @@ For GKE, use the same image and add a Deployment and Service with container port
 
 ## Regenerating the meanings
 
-The files in `public/defs` were generated from the WordNet 3.0 database (npm package `wordnet-db`), keeping the first sense of each part of speech and up to two extra senses. The generator was a one-off script and is not included.
+The files in `public/defs` were generated from the WordNet 3.0 database (npm package `wordnet-db`), keeping the first sense of each part of speech and up to two extra senses. The generator was a one-off script and is not included..
