@@ -78,11 +78,11 @@ Cloud Run through Cloud Build:
 
 ```bash
 gcloud services enable cloudbuild.googleapis.com artifactregistry.googleapis.com run.googleapis.com
-gcloud artifacts repositories create letter-duel --repository-format=docker --location=asia-southeast1
-gcloud builds submit --config=cloudbuild.yaml .
+gcloud artifacts repositories create letter-duel --repository-format=docker --location=us-central1
+gcloud builds submit --config=cloudbuild.yaml --substitutions=COMMIT_SHA=$(git rev-parse HEAD)
 ```
 
-The pipeline runs the tests, builds and pushes the image to Artifact Registry, then deploys it to Cloud Run. The Cloud Build service account needs `roles/artifactregistry.writer`, `roles/run.admin` and `roles/iam.serviceAccountUser`. Change `_REGION`, `_REPO` and `_SERVICE` at the top of `cloudbuild.yaml` if you want different names. To trigger builds from GitHub, connect the repository in Cloud Build and point a trigger at `cloudbuild.yaml`.
+The pipeline builds the image, pushes it to Artifact Registry, then deploys it to Cloud Run. It does not run the tests; the GitHub Actions workflow does (`npm test` runs before the Pages deploy). The Cloud Build service account needs `roles/artifactregistry.writer`, `roles/run.admin` and `roles/iam.serviceAccountUser`. Change `_REGION`, `_REPO` and `_SERVICE` at the top of `cloudbuild.yaml` if you want different names. Use a service name that no other Cloud Run service in the project already has, because `gcloud run deploy` replaces an existing service with the same name. To trigger builds from GitHub, connect the repository in Cloud Build and point a trigger at `cloudbuild.yaml`. Triggered builds fill in `COMMIT_SHA` automatically.
 
 `--allow-unauthenticated` in the deploy step makes the site public. Remove it if the game should require sign-in.
 
@@ -92,4 +92,4 @@ For GKE, use the same image and add a Deployment and Service with container port
 
 ## Regenerating the meanings
 
-The files in `public/defs` were generated from the WordNet 3.0 database (npm package `wordnet-db`), keeping the first sense of each part of speech and up to two extra senses. The generator was a one-off script and is not included..
+The files in `public/defs` were generated from the WordNet 3.0 database (npm package `wordnet-db`), keeping the first sense of each part of speech and up to two extra senses. The generator was a one-off script and is not included.

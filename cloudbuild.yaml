@@ -1,16 +1,6 @@
-# Cloud Build pipeline: test, build the image, push to Artifact Registry, deploy to Cloud Run.
-#
-# One-time setup (replace PROJECT_ID and region as needed):
-#   gcloud services enable cloudbuild.googleapis.com artifactregistry.googleapis.com run.googleapis.com
-#   gcloud artifacts repositories create letter-duel --repository-format=docker --location=asia-southeast1
-#
-# The Cloud Build service account needs these roles on the project:
-#   roles/artifactregistry.writer   push the image
-#   roles/run.admin                 deploy the Cloud Run service
-#   roles/iam.serviceAccountUser    act as the Cloud Run runtime service account
-#
-# Run by hand:      gcloud builds submit --config=cloudbuild.yaml .
-# Run from a trigger: connect the GitHub repo and point the trigger at this file.
+# Build, push and deploy the Letter Duel frontend to Cloud Run.
+# Trigger on pushes to main. For a manual run, pass the commit:
+#   gcloud builds submit --config=cloudbuild.yaml --substitutions=COMMIT_SHA=$(git rev-parse HEAD)
 
 substitutions:
   _REGION: us-central1
@@ -18,50 +8,43 @@ substitutions:
   _SERVICE: letter-duel
 
 steps:
-  # 1. Run the unit tests. A failure stops the build before any image is created.
-  - id: test
-    name: node:22-alpine
-    entrypoint: sh
-    args: ['-c', 'npm ci && npm test']
-
-  # 2. Build the image and tag it with the unique build id and with latest.
-  - id: build-image
-    name: gcr.io/cloud-builders/docker
+  # Step 1 - Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
     args:
-      - build
-      - --tag=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$BUILD_ID
-      - --tag=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest
-      - .
-    waitFor: ['test']
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/frontend:$COMMIT_SHA'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/frontend:latest'
+      - '.'
 
-  # 3. Push both tags.
-  - id: push-image
-    name: gcr.io/cloud-builders/docker
-    args: ['push', '--all-tags', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}']
-    waitFor: ['build-image']
+  # Step 2 - Push the image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/frontend'
 
-  # 4. Deploy the exact image built above (by build id, not latest).
-  #    --allow-unauthenticated makes the site public. Remove it to require Google sign-in.
-  - id: deploy
-    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+  # Step 3 - Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
-      - run
-      - deploy
-      - ${_SERVICE}
-      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$BUILD_ID
-      - --region=${_REGION}
-      - --platform=managed
-      - --port=8080
-      - --cpu=1
-      - --memory=256Mi
-      - --min-instances=0
-      - --max-instances=3
-      - --concurrency=80
-      - --allow-unauthenticated
-    waitFor: ['push-image']
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE}'
+      - '--image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/frontend:$COMMIT_SHA'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--port=8080'
+      - '--memory=256Mi'
+      - '--cpu=1'
+      - '--min-instances=0'
+      - '--max-instances=3'
 
 options:
   logging: CLOUD_LOGGING_ONLY
 
-timeout: 900s
+images:
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/frontend:$COMMIT_SHA'
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/frontend:latest'
